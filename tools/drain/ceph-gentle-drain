@@ -72,10 +72,8 @@ def cleanup(bench_pool):
 def update_osd_tree():
     global osd_tree
     print("update_osd_tree: loading ceph osd tree")
-    proc = subprocess.Popen(
-        'ceph osd tree --format=json 2>/dev/null')
-    osd_tree_json, stderr = proc.communicate()
-    osd_tree = json.loads(osd_tree_json)
+    osd_tree = json.loads(subprocess.check_output(
+        ['ceph', 'osd', 'tree', '--format=json', '2>/dev/null']))
     print("update_osd_tree: done")
 
 
@@ -146,26 +144,25 @@ def drain(osds, max_pgs_backfilling, max_latency, max_delta_weight, bench_pool, 
 
     total_delta_weight = 0
 
-    while (total_delta_weight < max_delta_weight) or (total_delta_weight <= total_weight):
-        if npgs > max_pgs_backfilling:
-            print("drain: npgs backfilling is too high, trying again later")
-            sleep(npgs * 10)
+    for osd in osds:
+        if total_delta_weight > max_delta_weight:
+            print("drain: reached max delta weight this round: %s" % total_delta_weight)
+            return
+
+        weight = get_crush_weight(osd)
+        if weight <= 0:
+            print("drain: skipping %s with weight %s" % (osd, weight))
             continue
 
-        for osd in osds:
-            weight = get_crush_weight(osd)
-            if weight <= 0:
-                print("drain: skipping %s with weight %s" % (osd, weight))
-                continue
+        new_weight = max(0, weight - delta)
+        print("drain: %s new weight will be %s" % (osd, new_weight))
+        crush_reweight(osd, new_weight)
+        total_delta_weight += delta
 
-            new_weight = max(0, weight - delta)
-            print("drain: %s new weight will be %s" % (osd, new_weight))
-            crush_reweight(osd, new_weight)
-            total_delta_weight += weight
-
-    print("All done")
-    cleanup(bench_pool)
-    sys.exit(0)
+    if total_delta_weight == 0:
+        print("All done")
+        cleanup(bench_pool)
+        sys.exit(0)
 
 
 def usage(code=0):
