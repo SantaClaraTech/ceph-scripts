@@ -11,7 +11,6 @@ import getopt
 import json
 import time
 import subprocess
-from time import sleep
 
 
 def pool_exists(pool):
@@ -88,7 +87,7 @@ def get_crush_weight(osd):
 
 
 def measure_latency(pool):
-    print "measure_latency: measuring 4kB write latency"
+    print("measure_latency: measuring 4kB write latency")
     proc = subprocess.Popen(
         "rados -p %s bench 10 write -t 1 -b 4096 2>/dev/null | egrep -i 'average latency' | awk '{print $3}'" %
      pool)
@@ -189,7 +188,7 @@ def main(argv):
     max_pgs_backfilling = 20
     max_delta_weight = 2
     bench_pool = "test"
-    delta = 10
+    delta = 1
 
     try:
         opts, args = getopt.getopt(
@@ -233,7 +232,7 @@ def main(argv):
     while(True):
         drain(drain_osds, max_pgs_backfilling, max_latency, max_delta_weight,
               bench_pool, delta)
-        print "main: sleeping 60s"
+        print("main: sleeping 60s")
         time.sleep(60)
 
 if __name__ == "__main__":
