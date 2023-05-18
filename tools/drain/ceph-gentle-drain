@@ -72,7 +72,7 @@ def update_osd_tree():
     global osd_tree
     print("update_osd_tree: loading ceph osd tree")
     osd_tree = json.loads(subprocess.check_output(
-        ['ceph', 'osd', 'tree', '--format=json', '2>/dev/null']))
+        ['ceph', 'osd', 'tree', '--format=json']))
     print("update_osd_tree: done")
 
 
@@ -88,9 +88,8 @@ def get_crush_weight(osd):
 
 def measure_latency(pool):
     print("measure_latency: measuring 4kB write latency")
-    proc = subprocess.Popen(
-        "rados -p %s bench 10 write -t 1 -b 4096 2>/dev/null | egrep -i 'average latency' | awk '{print $3}'" %
-     pool)
+    cmd = "rados -p %s bench 10 write -t 1 -b 4096 2>/dev/null | egrep -i 'average latency' | awk '{print $3}'" % pool
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
     latency, stderr = proc.communicate()
     latency_ms = 1000*float(latency)
     print("measure_latency: current latency is %s ms" % latency_ms)
@@ -99,17 +98,19 @@ def measure_latency(pool):
 
 def get_num_backfilling():
     cmd = "ceph health detail | grep pg | grep -v stuck | grep backfilling | wc -l"
-    proc = subprocess.Popen(cmd)
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
     out, stderr = proc.communicate()
-    n = int(out)
-    print("get_num_backfilling: PGs currently backfilling: %s" % n)
+    n = 0
+    if out is not None:
+        n = int(out)
+        print("get_num_backfilling: PGs currently backfilling: %s" % n)
     return n
 
 
 def crush_reweight(osd, weight):
     cmd = "ceph osd crush reweight %s %s" % (osd, weight)
     print("crush_reweight: calling %s" % cmd)
-    proc = subprocess.Popen(cmd)
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
     out, stderr = proc.communicate()
     print("crush_reweight: %s" % out)
 
