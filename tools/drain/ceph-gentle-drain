@@ -15,17 +15,15 @@ import subprocess
 
 def pool_exists(pool):
     cmd = ["ceph", "osd", "pool", "stats", pool]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = proc.communicate()
+    proc = subprocess.run(cmd, capture_output=True)
     return True if proc.returncode == 0 else False
 
 
 def create_pool(pool):
     cmd = ["ceph", "osd", "pool", "create", pool, "100", "100"]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = proc.communicate()
+    proc = subprocess.run(cmd, capture_output=True)
     if proc.returncode != 0:
-        raise Exception(stderr)
+        raise Exception(proc.stderr)
 
 
 def delete_pool(pool):
@@ -37,10 +35,9 @@ def delete_pool(pool):
     $ ceph osd pool delete <pool> <pool> --yes-i-really-really-mean-it
     """
     cmd = ["ceph", "osd", "pool", "delete", pool]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = proc.communicate()
+    proc = subprocess.run(cmd, capture_output=True)
     if proc.returncode != 0:
-        raise Exception(stderr)
+        raise Exception(proc.stderr)
 
 
 def prepare(bench_pool):
@@ -89,30 +86,25 @@ def get_crush_weight(osd):
 def measure_latency(pool):
     print("measure_latency: measuring 4kB write latency")
     cmd = "rados -p %s bench 10 write -t 1 -b 4096 2>/dev/null | egrep -i 'average latency' | awk '{print $3}'" % pool
-    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
-    latency, stderr = proc.communicate()
-    latency_ms = 1000*float(latency)
+    proc = subprocess.run(cmd, shell=True, capture_output=True, check=True)
+    latency_ms = 1000*float(proc.stdout)
     print("measure_latency: current latency is %s ms" % latency_ms)
     return latency_ms
 
 
 def get_num_backfilling():
     cmd = "ceph health detail | grep pg | grep -v stuck | grep backfilling | wc -l"
-    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
-    out, stderr = proc.communicate()
-    n = 0
-    if out is not None:
-        n = int(out)
-        print("get_num_backfilling: PGs currently backfilling: %s" % n)
+    proc = subprocess.run(cmd, shell=True, capture_output=True, check=True)
+    n = int(proc.stdout)
+    print("get_num_backfilling: PGs currently backfilling: %s" % n)
     return n
 
 
 def crush_reweight(osd, weight):
     cmd = "ceph osd crush reweight %s %s" % (osd, weight)
     print("crush_reweight: calling %s" % cmd)
-    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
-    out, stderr = proc.communicate()
-    print("crush_reweight: %s" % out)
+    proc = subprocess.run(cmd, shell=True, capture_output=True, check=True)
+    print("crush_reweight: %s" % proc.stdout)
 
 
 def drain(osds, max_pgs_backfilling, max_latency, max_delta_weight, bench_pool, delta):
@@ -175,7 +167,7 @@ def usage(code=0):
         -b/--backfills <N>             Max PGs backfilling, default 20
         -w/--weight <N>                Max incremental weight, default 2
         --bench-pool <POOL>            Pool used to measure latency, default 'test'
-        -d/--delta <N>                 Delta weight per OSD, default 10
+        -d/--delta <N>                 Delta weight per OSD, default 1
 
         Example:
         ceph-gentle-drain -o osd.0
